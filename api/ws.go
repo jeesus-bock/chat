@@ -25,10 +25,15 @@ type Container struct {
 	sendConns map[string]WSConn
 }
 
-var topics map[string]string
+var rooms map[string]string
 var cc *Container
 
-func init() {
+func InitWS() {
+	cc = new(Container)
+	cc.sendConns = make(map[string]WSConn)
+	Recv = make(chan *models.Msg)
+	Send = make(chan *models.Msg)
+	rooms = make(map[string]string)
 	app.Use("/", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			return c.Next()
@@ -41,14 +46,18 @@ func init() {
 		room := c.Params("room")
 		id := c.Params("id")
 		nick := c.Query("nick")
-
+		if t, ok := rooms[room]; !ok || t == "" {
+			rooms[room] = "default topic"
+		}
 		roomObj := new(models.Room)
 		for _, v := range cc.sendConns {
 			if v.Room == room {
-				roomObj.Users = append(roomObj.Users, v.Nick)
+				if !utils.ContainsStr(roomObj.Users, v.Nick) {
+					roomObj.Users = append(roomObj.Users, v.Nick)
+				}
 			}
 		}
-		roomObj.Topic = topics[room]
+		roomObj.Topic = rooms[room]
 		Send <- &models.Msg{Type: "join", To: room, From: "server", TS: int(time.Now().UnixMilli()), Msg: nick}
 		cc.sendConns[id] = WSConn{Conn: c, Room: room, Nick: nick}
 		log.Info("New websocket connection", "id", id, "room", room)
@@ -84,6 +93,9 @@ func init() {
 					cc.sendConns[id] = entry
 				}
 			}
+			if msg.Type == "topic" {
+				rooms[msg.To] = msg.Msg
+			}
 			// Replace the From field with user's nickname
 			msg.From = nick
 			// Send the unmarshaled message to the recv channel
@@ -115,19 +127,54 @@ func (c *Container) sendMsg(id string, msg *models.Msg) {
 
 // GetUsers returns a map of all users on the server.
 // TODO this needs defining and adjustments.
-func GetUsers(cfg models.Config, conns map[string]WSConn) (ret map[string]*models.User) {
-	ret = make(map[string]*models.User)
-	rooms := make([]string, 0)
+func GetUsers(cfg *models.Config, conns map[string]WSConn) (ret []models.User) {
+	ret = make([]models.User, 0)
 	for k, v := range conns {
-		ret[k] = new(models.User)
-		ret[k].UserID = k
-		ret[k].Nick = v.Nick
-		// This is left borken, we need to define ws conn <-> room relation
-		if !utils.ContainsStr(rooms, v.Room) {
-			rooms = append(rooms, v.Room)
+		tmp := new(models.User)
+		tmp.UserID = k
+		tmp.Nick = v.Nick
+		// ContainsUser only matches the nick, so we can possibly bail out early
+		if !utils.ContainsUser(ret, *tmp) {
+			// This is left borken, we need to define ws conn <-> room relation
+			rooms := make([]string, 0)
+			if !utils.ContainsStr(rooms, v.Room) {
+				rooms = append(rooms, v.Room)
+			}
+			tmp.Rooms = rooms
+			tmp.Server = cfg.Host
+			ret = append(ret, *tmp)
 		}
-		ret[k].Rooms = rooms
-		ret[k].Server = cfg.Host
+	}
+	return
+}
+
+func GetRooms(cfg *models.Config, conns map[string]WSConn) (ret []models.Room) {
+	log.Info("GetRooms", rooms)
+	ret = make([]models.Room, 0)
+	for k, v := range rooms {
+		rr := new(models.Room)
+		rr.Name = k
+		rr.Topic = v
+		rr.Users = GetRoomUsers(k, conns)
+		// Only insert each room once
+		if !utils.ContainsRoom(ret, *rr) {
+			ret = append(ret, *rr)
+		}
+	}
+	return
+}
+func GetRoomsMap() map[string]string {
+	return rooms
+}
+
+func GetRoomUsers(room string, conns map[string]WSConn) (ret []string) {
+	ret = make([]string, 0)
+	for _, v := range conns {
+		if v.Room == room {
+			if !utils.ContainsStr(ret, v.Nick) {
+				ret = append(ret, v.Nick)
+			}
+		}
 	}
 	return
 }

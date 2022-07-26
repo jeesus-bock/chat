@@ -16,16 +16,14 @@ import (
 var log *logrus.Logger
 var app *fiber.App
 
-func init() {
+func Init(cfg *models.Config) {
 	log = logger.GetLogger()
-	cc = new(Container)
-	cc.sendConns = make(map[string]WSConn)
-	topics = make(map[string]string)
+
 	app = fiber.New()
-	Recv = make(chan *models.Msg)
-	Send = make(chan *models.Msg)
+
 	app.Use(cors.New(cors.Config{AllowOrigins: "*"}))
-	app.Get("/server", serverDataHandler)
+	app.Get("/server", getServerDataHandler(cfg))
+	app.Get("/rooms", GetRoomsMapHandler)
 	app.Static("/uploads", "./uploads")
 	app.Post("/upload/:id/:room", func(c *fiber.Ctx) (err error) {
 		log.Info("/upload POST handler")
@@ -49,6 +47,7 @@ func init() {
 
 		return
 	})
+	InitWS()
 }
 
 func RunServer(host string) {

@@ -21,6 +21,7 @@ func main() {
 	config.Host = *host
 	config.Name = *name
 	config.Type = *typ
+	api.Init(config)
 	go pipeline()
 	api.RunServer(config.Host)
 }
