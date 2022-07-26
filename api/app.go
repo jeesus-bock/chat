@@ -21,9 +21,16 @@ func Init(cfg *models.Config) {
 
 	app = fiber.New()
 
+	// Debug settings allow all origins, TODO change on deployments
 	app.Use(cors.New(cors.Config{AllowOrigins: "*"}))
+
+	// The main end-point with all the relevant data
 	app.Get("/server", getServerDataHandler(cfg))
+
+	// Temporary debug end-point or maybe use to view data on front.
 	app.Get("/rooms", GetRoomsMapHandler)
+
+	// Statically serve uploads dir
 	app.Static("/uploads", "./uploads")
 	app.Post("/upload/:id/:room", func(c *fiber.Ctx) (err error) {
 		log.Info("/upload POST handler")
