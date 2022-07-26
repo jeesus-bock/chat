@@ -1,26 +1,19 @@
-package ws
+package api
 
 import (
-	"chat/logger"
 	"chat/models"
+	"chat/utils"
 	"encoding/json"
-	"fmt"
-	"mime/multipart"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
-	"github.com/sirupsen/logrus"
 )
 
 var Recv chan *models.Msg
 var Send chan *models.Msg
-
-var log *logrus.Logger
-var app *fiber.App
 
 type WSConn struct {
 	Conn *websocket.Conn
@@ -32,48 +25,10 @@ type Container struct {
 	sendConns map[string]WSConn
 }
 
-func (c *Container) sendMsg(id string, msg *models.Msg) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.sendConns[id].Conn.WriteJSON(msg)
-}
-
 var topics map[string]string
 var cc *Container
 
 func init() {
-	log = logger.GetLogger()
-	cc = new(Container)
-	cc.sendConns = make(map[string]WSConn)
-	topics = make(map[string]string)
-	app = fiber.New()
-	Recv = make(chan *models.Msg)
-	Send = make(chan *models.Msg)
-	app.Use(cors.New(cors.Config{AllowOrigins: "*"}))
-	app.Get("/monitor", monitor)
-	app.Static("/uploads", "./uploads")
-	app.Post("/upload/:id/:room", func(c *fiber.Ctx) (err error) {
-		log.Info("/upload POST handler")
-		room := c.Params("room")
-		id := c.Params("id")
-		if room == "" || id == "" {
-			c.SendStatus(fiber.StatusBadRequest)
-			return
-		}
-		nick := cc.sendConns[id].Nick
-		var file *multipart.FileHeader
-		// Get first file from form field "document":
-		file, err = c.FormFile("document")
-		fn := nick + ":" + strconv.Itoa(int(time.Now().UnixMilli())) + ".ogg"
-		// Check for errors:
-		if err == nil {
-			// 👷 Save file to /uploads directory:
-			c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
-			Send <- &models.Msg{Type: "voice", To: room, Msg: fmt.Sprintf("http://127.0.0.1:9393/uploads/%s/%s", room, fn)}
-		}
-
-		return
-	})
 	app.Use("/", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			return c.Next()
@@ -152,7 +107,27 @@ func init() {
 	log.Info("Initialized websocket listening")
 }
 
-func RunServer() {
-	log.Info("Running server")
-	log.Error("Server shut down", "error", app.Listen(":9393"))
+func (c *Container) sendMsg(id string, msg *models.Msg) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sendConns[id].Conn.WriteJSON(msg)
+}
+
+// GetUsers returns a map of all users on the server.
+// TODO this needs defining and adjustments.
+func GetUsers(cfg models.Config, conns map[string]WSConn) (ret map[string]*models.User) {
+	ret = make(map[string]*models.User)
+	rooms := make([]string, 0)
+	for k, v := range conns {
+		ret[k] = new(models.User)
+		ret[k].UserID = k
+		ret[k].Nick = v.Nick
+		// This is left borken, we need to define ws conn <-> room relation
+		if !utils.ContainsStr(rooms, v.Room) {
+			rooms = append(rooms, v.Room)
+		}
+		ret[k].Rooms = rooms
+		ret[k].Server = cfg.Host
+	}
+	return
 }
