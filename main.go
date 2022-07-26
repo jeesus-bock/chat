@@ -1,12 +1,10 @@
 package main
 
 import (
+	"chat/api"
 	"chat/logger"
 	"chat/models"
-	"chat/mq"
-	"chat/ws"
-	"fmt"
-	"time"
+	"flag"
 
 	"github.com/sirupsen/logrus"
 )
@@ -15,27 +13,14 @@ var log *logrus.Logger
 
 func main() {
 	log = logger.GetLogger()
-	go func() {
-		// Create ticker to send ping, debug code.
-		ticker := time.NewTicker(2099 * time.Second)
-		for {
-			select {
-			case mqMsg := <-mq.Recv:
-				log.Debug("Received NATS message: ", fmt.Sprintf("%+v\n", mqMsg))
-				if mqMsg.Type == "nick" {
-					msg := mqMsg.From + " is now known as " + mqMsg.Msg
-					mqMsg.From = "server"
-					mqMsg.Msg = msg
-				}
-				ws.Send <- mqMsg
-			case wsMsg := <-ws.Recv:
-				log.Debug("Received WS message", fmt.Sprintf("%+v\n", wsMsg))
-				mq.Send <- wsMsg
-			case t := <-ticker.C:
-				log.Debugf("Sending keepalive", "t", t)
-				mq.Send <- &models.Msg{Type: "ping", TS: int(time.Now().UnixMilli()), To: "*", Msg: "Keepalive"}
-			}
-		}
-	}()
-	ws.RunServer()
+	config := new(models.Config)
+	host := flag.String("host", "127.0.0.1:9393", "hostname:port")
+	name := flag.String("name", "server1", "unique name for server")
+	typ := flag.String("type", "MASTER", "Not used atm")
+
+	config.Host = *host
+	config.Name = *name
+	config.Type = *typ
+	go pipeline()
+	api.RunServer(config.Host)
 }
