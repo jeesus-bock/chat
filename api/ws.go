@@ -2,6 +2,7 @@ package api
 
 import (
 	"chat/models"
+	"chat/store"
 	"chat/utils"
 	"encoding/json"
 	"strconv"
@@ -25,11 +26,13 @@ type Container struct {
 	sendConns map[string]WSConn
 }
 
-var rooms map[string]string
-var cc *Container
+// the in-memory store for message history, used if -noredis flag is set
 var oldMessages []models.Msg
 
-func InitWS() {
+var rooms map[string]string
+var cc *Container
+
+func InitWS(cfg *models.Config) {
 	cc = new(Container)
 	cc.sendConns = make(map[string]WSConn)
 	Recv = make(chan *models.Msg)
@@ -73,9 +76,18 @@ func InitWS() {
 		if err != nil {
 			log.Error("Failed to marshal roomObj")
 		}
-		// Test sending the entire oldMessages to new connection, this does not scale but poc
-		for _, m := range oldMessages {
-			log.Infof("Sending %d old messages", len(oldMessages))
+		// Test using redis backend
+		var msgList []models.Msg
+		if cfg.NoRedis {
+			msgList = oldMessages
+		} else {
+			msgList, err = store.GetLocalHistory()
+			if err != nil {
+				log.Error("error loading local msg history from redis: ", err)
+			}
+		}
+		for _, m := range msgList {
+			log.Infof("Sending %d old messages", len(msgList))
 			cc.sendMsg(id, &m)
 		}
 		cc.sendMsg(id, &models.Msg{Type: "connected", TS: int(time.Now().UnixMilli()), From: "server", To: room, Msg: string(roomJson)})
@@ -115,7 +127,11 @@ func InitWS() {
 	go func() {
 		for {
 			msg := <-Send
-			oldMessages = append(oldMessages, *msg)
+			if cfg.NoRedis {
+				oldMessages = append(oldMessages, *msg)
+			} else {
+				store.AddLocalHistoryMsg(*msg)
+			}
 			// Send messages to this room and to wildcard room "*"
 			for k, v := range cc.sendConns {
 				if msg.To == v.Room || msg.To == "*" {
