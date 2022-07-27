@@ -9,6 +9,10 @@ import (
 func getServerDataHandler(cfg *models.Config) func(c *fiber.Ctx) error {
 	fn := func(c *fiber.Ctx) error {
 		s := new(models.ServerData)
+		s.Name = cfg.Name
+		s.Type = cfg.Type
+		s.URL = cfg.Host
+		s.VoiceURL = cfg.Host
 		s.Users = GetUsers(cfg, cc.sendConns)
 		s.Rooms = GetRooms(cfg, cc.sendConns)
 		c.JSON(*s)
