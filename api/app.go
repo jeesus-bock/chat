@@ -3,8 +3,10 @@ package api
 import (
 	"chat/logger"
 	"chat/models"
+	"errors"
 	"fmt"
 	"mime/multipart"
+	"os"
 	"strconv"
 	"time"
 
@@ -16,21 +18,27 @@ import (
 var log *logrus.Logger
 var app *fiber.App
 
-func init() {
+func Init(cfg *models.Config) {
 	log = logger.GetLogger()
-	cc = new(Container)
-	cc.sendConns = make(map[string]WSConn)
-	topics = make(map[string]string)
+
 	app = fiber.New()
-	Recv = make(chan *models.Msg)
-	Send = make(chan *models.Msg)
+
+	// Debug settings allow all origins, TODO change on deployments
 	app.Use(cors.New(cors.Config{AllowOrigins: "*"}))
-	app.Get("/server", serverDataHandler)
+
+	// The main end-point with all the relevant data
+	app.Get("/server", getServerDataHandler(cfg))
+
+	// Temporary debug end-point or maybe use to view data on front.
+	app.Get("/rooms", GetRoomsMapHandler)
+
+	// Statically serve uploads dir
 	app.Static("/uploads", "./uploads")
 	app.Post("/upload/:id/:room", func(c *fiber.Ctx) (err error) {
 		log.Info("/upload POST handler")
 		room := c.Params("room")
 		id := c.Params("id")
+		log.Info("Room:", room, "ID: ", id)
 		if room == "" || id == "" {
 			c.SendStatus(fiber.StatusBadRequest)
 			return
@@ -43,12 +51,36 @@ func init() {
 		// Check for errors:
 		if err == nil {
 			// 👷 Save file to /uploads directory:
-			c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
-			Send <- &models.Msg{Type: "voice", To: room, Msg: fmt.Sprintf("http://127.0.0.1:9393/uploads/%s/%s", room, fn)}
+			_, err = os.Stat("./uploads")
+			log.Error(err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Info("Creating upload dir ./uploads")
+				err = os.Mkdir("./uploads", 0777)
+				if err != nil {
+					log.Error(err)
+				}
+				_, err = os.Stat(fmt.Sprintf("./uploads/%s", room))
+				if errors.Is(err, os.ErrNotExist) {
+					log.Infof("Creating upload room dir %s", fmt.Sprintf("./uploads/%s", room))
+					err = os.Mkdir(fmt.Sprintf("./uploads/%s", room), 0777)
+					if err != nil {
+						log.Error(err)
+					}
+				}
+			}
+			err = c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
+			if err != nil {
+				c.SendStatus(fiber.StatusBadRequest)
+				c.JSON(err)
+			}
+			Send <- &models.Msg{Type: "voice", To: room, Msg: fmt.Sprintf(cfg.URL+"/uploads/%s/%s", room, fn)}
+		} else {
+			log.Error(err)
 		}
 
 		return
 	})
+	InitWS()
 }
 
 func RunServer(host string) {

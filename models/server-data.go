@@ -1,10 +1,10 @@
 package models
 
 type ServerData struct {
-	Name      string `json:"name"`
-	URL       string `json:"url"`
-	VoiceURL  string `json:"voiceUrl"`
-	UserCount int    `json:"userCount"`
-	Rooms     []Room `json:"rooms"`
-	Users     []User `json:"users"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	URL      string `json:"url"`
+	VoiceURL string `json:"voiceUrl"`
+	Rooms    []Room `json:"rooms"`
+	Users    []User `json:"users"`
 }

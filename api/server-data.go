@@ -6,11 +6,21 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func serverDataHandler(c *fiber.Ctx) error {
-	s := new(models.ServerData)
-	s.Rooms = make([]models.Room, 0)
-	s.Users = make([]models.User, 0)
+func getServerDataHandler(cfg *models.Config) func(c *fiber.Ctx) error {
+	fn := func(c *fiber.Ctx) error {
+		s := new(models.ServerData)
+		s.Name = cfg.Name
+		s.Type = cfg.Type
+		s.URL = cfg.Host
+		s.VoiceURL = cfg.Host
+		s.Users = GetUsers(cfg, cc.sendConns)
+		s.Rooms = GetRooms(cfg, cc.sendConns)
+		c.JSON(*s)
+		return nil
+	}
+	return fn
+}
 
-	c.JSON(cc.sendConns)
-	return nil
+func GetRoomsMapHandler(c *fiber.Ctx) error {
+	return c.JSON(GetRoomsMap())
 }
