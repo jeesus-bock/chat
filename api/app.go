@@ -3,7 +3,6 @@ package api
 import (
 	"chat/logger"
 	"chat/models"
-	"errors"
 	"fmt"
 	"mime/multipart"
 	"os"
@@ -50,24 +49,28 @@ func Init(cfg *models.Config) {
 		fn := nick + ":" + strconv.Itoa(int(time.Now().UnixMilli())) + ".ogg"
 		// Check for errors:
 		if err == nil {
-			// 👷 Save file to /uploads directory:
+
+			// Create upload directory if necessary
+			// TODO: Make this configurable
 			_, err = os.Stat("./uploads")
-			log.Error(err)
-			if errors.Is(err, os.ErrNotExist) {
-				log.Info("Creating upload dir ./uploads")
+			if err != nil {
+				log.Info("Creating upload dir ./uploads: ", err)
 				err = os.Mkdir("./uploads", 0777)
 				if err != nil {
 					log.Error(err)
 				}
-				_, err = os.Stat(fmt.Sprintf("./uploads/%s", room))
-				if errors.Is(err, os.ErrNotExist) {
-					log.Infof("Creating upload room dir %s", fmt.Sprintf("./uploads/%s", room))
-					err = os.Mkdir(fmt.Sprintf("./uploads/%s", room), 0777)
-					if err != nil {
-						log.Error(err)
-					}
+
+			}
+			// Add the room-name subdirectory if necessary
+			_, err = os.Stat(fmt.Sprintf("./uploads/%s", room))
+			if err != nil {
+				log.Infof("Creating upload room dir %s", fmt.Sprintf("./uploads/%s", room))
+				err = os.Mkdir(fmt.Sprintf("./uploads/%s", room), 0777)
+				if err != nil {
+					log.Error(err)
 				}
 			}
+			// Save file to /uploads/<room> directory
 			err = c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
 			if err != nil {
 				c.SendStatus(fiber.StatusBadRequest)
@@ -80,7 +83,7 @@ func Init(cfg *models.Config) {
 
 		return
 	})
-	InitWS()
+	InitWS(cfg)
 }
 
 func RunServer(host string) {

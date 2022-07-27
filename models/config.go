@@ -10,4 +10,6 @@ type Config struct {
 	Type string
 	// URL for the outside access to api
 	URL string
+	// cli flag to turn off redis support
+	NoRedis bool
 }
