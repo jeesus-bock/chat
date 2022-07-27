@@ -3,8 +3,10 @@ package api
 import (
 	"chat/logger"
 	"chat/models"
+	"errors"
 	"fmt"
 	"mime/multipart"
+	"os"
 	"strconv"
 	"time"
 
@@ -36,6 +38,7 @@ func Init(cfg *models.Config) {
 		log.Info("/upload POST handler")
 		room := c.Params("room")
 		id := c.Params("id")
+		log.Info("Room:", room, "ID: ", id)
 		if room == "" || id == "" {
 			c.SendStatus(fiber.StatusBadRequest)
 			return
@@ -48,8 +51,31 @@ func Init(cfg *models.Config) {
 		// Check for errors:
 		if err == nil {
 			// 👷 Save file to /uploads directory:
-			c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
-			Send <- &models.Msg{Type: "voice", To: room, Msg: fmt.Sprintf("http://127.0.0.1:9393/uploads/%s/%s", room, fn)}
+			_, err = os.Stat("./uploads")
+			log.Error(err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Info("Creating upload dir ./uploads")
+				err = os.Mkdir("./uploads", 0777)
+				if err != nil {
+					log.Error(err)
+				}
+				_, err = os.Stat(fmt.Sprintf("./uploads/%s", room))
+				if errors.Is(err, os.ErrNotExist) {
+					log.Infof("Creating upload room dir %s", fmt.Sprintf("./uploads/%s", room))
+					err = os.Mkdir(fmt.Sprintf("./uploads/%s", room), 0777)
+					if err != nil {
+						log.Error(err)
+					}
+				}
+			}
+			err = c.SaveFile(file, fmt.Sprintf("./uploads/%s/%s", room, fn))
+			if err != nil {
+				c.SendStatus(fiber.StatusBadRequest)
+				c.JSON(err)
+			}
+			Send <- &models.Msg{Type: "voice", To: room, Msg: fmt.Sprintf(cfg.URL+"/uploads/%s/%s", room, fn)}
+		} else {
+			log.Error(err)
 		}
 
 		return

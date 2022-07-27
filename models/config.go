@@ -8,4 +8,6 @@ type Config struct {
 	Host string
 	// The type of the server for when we have master and leaf servers
 	Type string
+	// URL for the outside access to api
+	URL string
 }
