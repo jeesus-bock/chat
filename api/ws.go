@@ -27,6 +27,7 @@ type Container struct {
 
 var rooms map[string]string
 var cc *Container
+var oldMessages []models.Msg
 
 func InitWS() {
 	cc = new(Container)
@@ -72,6 +73,11 @@ func InitWS() {
 		if err != nil {
 			log.Error("Failed to marshal roomObj")
 		}
+		// Test sending the entire oldMessages to new connection, this does not scale but poc
+		for _, m := range oldMessages {
+			log.Infof("Sending %d old messages", len(oldMessages))
+			cc.sendMsg(id, &m)
+		}
 		cc.sendMsg(id, &models.Msg{Type: "connected", TS: int(time.Now().UnixMilli()), From: "server", To: room, Msg: string(roomJson)})
 
 		// Another infinite loop for reading messages and sending then to Recv channel
@@ -109,6 +115,7 @@ func InitWS() {
 	go func() {
 		for {
 			msg := <-Send
+			oldMessages = append(oldMessages, *msg)
 			// Send messages to this room and to wildcard room "*"
 			for k, v := range cc.sendConns {
 				if msg.To == v.Room || msg.To == "*" {
