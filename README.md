@@ -16,4 +16,5 @@ or finnish, don't be shy.
 - go get
 - go build
 - Start NATS server, more info https://github.com/jeesus-bock/natikka
+- Optionally start Redis server with default config, or use -noredis flag to use in-memory history
 - ./chat
