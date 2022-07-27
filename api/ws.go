@@ -34,6 +34,7 @@ func InitWS() {
 	Recv = make(chan *models.Msg)
 	Send = make(chan *models.Msg)
 	rooms = make(map[string]string)
+	rooms["main"] = "Main chatroom"
 	app.Use("/", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			return c.Next()
