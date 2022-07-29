@@ -39,6 +39,9 @@ func InitWS(cfg *models.Config) {
 	Send = make(chan *models.Msg)
 	rooms = make(map[string]string)
 	rooms["main"] = "Main chatroom"
+	rooms["testing"] = "Testing grounds"
+	rooms["test2"] = "Testing grounds #2"
+
 	app.Use("/", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			return c.Next()
@@ -86,8 +89,8 @@ func InitWS(cfg *models.Config) {
 				log.Error("error loading local msg history from redis: ", err)
 			}
 		}
+		log.Infof("Sending %d old messages", len(msgList))
 		for _, m := range msgList {
-			log.Infof("Sending %d old messages", len(msgList))
 			cc.sendMsg(id, &m)
 		}
 		cc.sendMsg(id, &models.Msg{Type: "connected", TS: int(time.Now().UnixMilli()), From: "server", To: room, Msg: string(roomJson)})
