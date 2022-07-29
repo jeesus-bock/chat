@@ -24,8 +24,10 @@ A practical example here being the voice messages that are and should not be del
   ]
 }
 ```
-- /uploads/<room name>/<filename> - Serves static uploaded files or a status 404 if the file doesn't exist.
+- /uploads/{room name}/<filename> - Serves static uploaded files or a status 404 if the file doesn't exist.
 - /rooms - Returns the internal map with room names as key and topic as value.
 - / - All other paths lead to WS upgrading.
-- /ws/<user id>/<room> - Offers ws:// in localhost and wss:// on deployment. At the moment the user id is generated clientside and room is created if it doesn't already exist.
+- /ws/{user id}/{room name} - Offers ws:// in localhost and wss:// on deployment. At the moment the user id is generated clientside and room is created if it doesn't already exist.
 
+  ### POST
+  - /upload/{user id}/{room name} - Uploads a file as field named "document" in FormData. At the moment this is only implemented for audio files (Recoded voice messages), but ought to support other kinds of files, images for example.
