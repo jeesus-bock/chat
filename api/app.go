@@ -33,6 +33,10 @@ func Init(cfg *models.Config) {
 
 	// Statically serve uploads dir
 	app.Static("/uploads", "./uploads")
+	// Catch requesting missing files
+	app.Get("/uploads/*", func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNotFound)
+	})
 	app.Post("/upload/:id/:room", func(c *fiber.Ctx) (err error) {
 		log.Info("/upload POST handler")
 		room := c.Params("room")
