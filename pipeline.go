@@ -15,11 +15,6 @@ func pipeline() {
 		select {
 		case mqMsg := <-mq.Recv:
 			log.Debug("Received NATS message: ", fmt.Sprintf("%+v\n", mqMsg))
-			if mqMsg.Type == "nick" {
-				msg := mqMsg.From + " is now known as " + mqMsg.Msg
-				mqMsg.From = "server"
-				mqMsg.Msg = msg
-			}
 			api.Send <- mqMsg
 		case wsMsg := <-api.Recv:
 			log.Debug("Received WS message", fmt.Sprintf("%+v\n", wsMsg))

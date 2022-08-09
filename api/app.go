@@ -27,7 +27,10 @@ func Init(cfg *models.Config) {
 
 	// The main end-point with all the relevant data
 	app.Get("/server", getServerDataHandler(cfg))
-
+	// Responds with an array of Rooms
+	app.Get("/rooms", getRoomsHandler(cfg))
+	// Respond with an array of Users
+	app.Get("/users", getUsersHandler(cfg))
 	// Temporary debug end-point or maybe use to view data on front.
 	app.Get("/rooms", GetRoomsMapHandler)
 
